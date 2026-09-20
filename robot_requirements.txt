@@ -1,0 +1,84 @@
+ROBOT NAVIGATION - SOFTWARE REQUIREMENTS GENERATED FROM brief.txt
+Generated: 2026-09-20T10:28:39
+Model: qwen-plus
+Number of runs: 3
+======================================================================
+RUN 1 - 2026-09-20T10:28:13
+Model: qwen-plus
+
+Here are the explicit, testable software requirements derived from the Robot Navigation Brief:
+
+**System Goal**  
+- R1: The navigation logic must enable the robot to move toward its goal while avoiding collisions with blocked paths.
+
+**Inputs**  
+- R2: The system shall accept three binary sensor inputs indicating whether the path is *blocked* in each of three directions: **front**, **left**, and **right**.  
+- R3: The system shall accept up to three binary goal-direction indicators specifying whether the **goal is ahead**, **to the left**, or **to the right** (note: multiple indicators may be true — e.g., goal may be both ahead and to the right in diagonal cases — unless otherwise constrained; the brief does not forbid this, so the logic must handle it robustly).
+
+**Behavioral Rules**  
+- R4: The robot shall **prefer moving toward the goal**, i.e., among all *safe* (unblocked) directions, it shall select one that aligns with at least one active goal-direction indicator — if such a direction exists.  
+- R5: The robot shall **never move in a direction marked as blocked**, regardless of goal alignment.  
+- R6: If *no unblocked direction* is available (i.e., front, left, and right are all blocked), the robot **must stop** (i.e., issue no motion command).  
+- R7: If *some directions are unblocked*, but *none of them align with any active goal-direction indicator*, the robot shall select *any safe direction* (implementation-defined tie-breaking is allowed, e.g., prioritize front > left > right) — the brief mandates safety first, then goal preference, not goal exclusivity.
+
+**Robustness & Testability**  
+- R8: The navigation logic shall be deterministic and stateless (or explicitly documented if stateful), enabling repeatable testing across multiple simulated environments.  
+- R9: All decisions shall be based solely on the six input signals (3 blocked, 3 goal-direction); no external data (e.g., position, history, speed) shall influence behavior unless later specified — per the brief, these are the only inputs provided.
+
+Let me know if you'd like a decision table, pseudocode implementation, or test case examples based on these requirements.
+
+----------------------------------------------------------------------
+
+RUN 2 - 2026-09-20T10:28:28
+Model: qwen-plus
+
+Here are the explicit, testable software requirements derived from the Robot Navigation Brief:
+
+**System Goal**  
+- R1: The navigation logic must enable the robot to move toward its goal while avoiding collisions with blocked paths.
+
+**Inputs**  
+- R2: The system shall accept three binary sensor inputs indicating whether the path is *blocked* in each of three directions: **front**, **left**, and **right**.  
+- R3: The system shall accept up to three binary goal-direction indicators specifying whether the **goal is ahead**, **to the left**, or **to the right** (note: multiple indicators may be true — e.g., goal may be both ahead and to the right in diagonal cases — unless otherwise constrained; the brief does not forbid this, so the logic must handle it robustly).
+
+**Behavioral Rules**  
+- R4: The robot shall **prefer moving toward the goal**, but only if the corresponding direction is *not blocked*.  
+- R5: The robot shall **never issue a movement command** in a direction marked as blocked (i.e., movement into front/left/right is strictly prohibited when that direction’s blocked input is true).  
+- R6: If *no unblocked direction* aligns with a goal direction (i.e., all goal-aligned directions are blocked, and/or no goal direction is indicated), the robot shall **select no movement** — i.e., it must stop (halt in place).  
+- R7: When multiple unblocked directions are also goal-aligned, the logic shall choose *one* — the brief does not specify tie-breaking priority (e.g., front > left > right), so any deterministic, consistent choice is acceptable unless further constraints are added later. *(Note: This is an implicit requirement for determinism; non-deterministic behavior would impede testing.)*
+
+**Safety & Failure Handling**  
+- R8: In all cases — including ambiguous, missing, or contradictory inputs (e.g., all directions blocked, or no goal direction indicated) — the robot shall default to stopping. Stopping is the safe fallback.  
+- R9: The navigation output shall be one of exactly four discrete commands: **move forward**, **turn left**, **turn right**, or **stop** — corresponding to the physical actions available (implied by context of “move into a direction” and “stop”).
+
+**Testability & Integration**  
+- R10: The navigation logic shall be implemented as a pure function (or stateless component) mapping the six Boolean inputs (3 blocked + 3 goal-direction) to one of the four outputs — enabling deterministic unit testing across all 2⁶ = 64 possible input combinations.  
+- R11: The design shall support integration into multiple simulated environments — implying no hard-coded assumptions about map geometry, timing, or sensor noise (i.e., inputs are abstracted Boolean flags, not raw sensor data).
+
+Let me know if you'd like a decision table covering all 64 input cases, pseudocode, or a state-machine diagram.
+
+----------------------------------------------------------------------
+
+RUN 3 - 2026-09-20T10:28:39
+Model: qwen-plus
+
+Here are the explicit, testable software requirements derived from the Robot Navigation Brief:
+
+**System Goal**  
+- R1: The navigation logic must enable the robot to move toward its goal while avoiding collisions with blocked paths.
+
+**Inputs**  
+- R2: The system shall accept three binary sensor inputs indicating whether the path is *blocked* in each of three directions: **front**, **left**, and **right**.  
+- R3: The system shall accept up to three binary goal-direction indicators specifying whether the **goal is ahead**, **to the left**, or **to the right** (note: multiple indicators may be true — e.g., goal may be both ahead and to the right in diagonal cases — unless otherwise constrained; the brief does not forbid this, so the logic must handle it robustly).
+
+**Behavioral Rules**  
+- R4: The robot shall **prefer moving toward the goal**, i.e., among all *safe* (unblocked) directions, it shall select one that aligns with at least one active goal-direction indicator — if such a direction exists.  
+- R5: The robot shall **never move in a direction marked as blocked**, regardless of goal alignment.  
+- R6: If *no unblocked direction* is available (i.e., front, left, and right are all blocked), the robot **must stop** (i.e., issue no motion command).  
+- R7: If *some directions are unblocked*, but *none of them align with any active goal-direction indicator*, the robot shall select *any safe direction* (implementation-defined tie-breaking is allowed, e.g., prioritize front > left > right) — since preference applies only “whenever this can be done safely”, and safety is satisfied, but goal-alignment is not possible.
+
+**Robustness & Testability**  
+- R8: The navigation logic shall be deterministic and stateless (or explicitly documented if stateful), enabling repeatable behavior across multiple simulated environments.  
+- R9: All decisions shall be based solely on the six input signals (3 blocked, 3 goal-direction); no external assumptions (e.g., about map, history, speed, or orientation beyond the defined directions) shall be made.
+
+Let me know if you'd like these translated into pseudocode, a decision table, or formal logic (e.g., LTL or state machine).
