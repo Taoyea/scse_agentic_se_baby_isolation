@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local secrets / environment - never commit the API key
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
