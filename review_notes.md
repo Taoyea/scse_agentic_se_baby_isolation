@@ -1,115 +1,76 @@
-# Review Notes — Generated Navigation Logic
+# Review Notes
 
-**Reviewer:** Project Team
-**Date:** 2026-10-13
-**File under review:** `generated/navigation_logic.py`
-**Review type:** Code review + requirements compliance check
+Reviewed the navigation logic that Qwen generated (in generated/navigation_logic.py).
+Went through it line by line and also ran it in the simulator to see if anything breaks.
 
----
+## What the code does
 
-## 1. Summary
+The function takes 6 booleans: whether front/left/right are blocked, and whether
+the goal is in front/left/right. It checks goal directions first (front, then left,
+then right) and moves there if it's not blocked. If none of the goal directions are
+safe, it just picks any safe direction in the same order. If everything is blocked,
+it stops.
 
-The Developer Agent (Qwen) generated a 19-line Python function `choose_action()` that implements the navigation strategy described in `artifacts/plan.json`. The logic is **functionally correct** against the core requirements in `brief.txt`: it never moves into a blocked direction, prefers goal-aligned movement, and stops when no safe direction exists.
+## Does it meet the brief?
 
-However, the review identified several areas for improvement in robustness, code quality, and edge-case handling. These are addressed in the revised implementation (`navigation_logic_revised.py`).
+- Prefers goal direction when safe? Yes, lines 3-8 check goal_* first.
+- Never moves into a blocked direction? Yes, every if has `not blocked_*`.
+- Stops when no safe direction? Yes, line 19 returns STOP.
+- Uses only FORWARD/LEFT/RIGHT/STOP? Yes.
 
----
+So the core requirements are all covered. The 64-input truth table test in
+simulator.py confirms no collisions ever happen.
 
-## 2. Requirements Compliance Check
+## Problems I found
 
-| Requirement (from brief.txt) | Status | Notes |
-|---|---|---|
-| Prefer moving toward goal when safe | PASS | Lines 3-8 check goal directions first |
-| Never move into a blocked direction | PASS | Every movement check includes `not blocked_*` |
-| Stop when no safe direction available | PASS | Lines 19 returns "STOP" as fallback |
-| Accept 3 blocked + 3 goal inputs | PASS | Function signature matches |
-| Return one of FORWARD/LEFT/RIGHT/STOP | PASS | All return paths use valid actions |
-| Testable in multiple simulated environments | PASS | Pure function, no side effects |
+### 1. Wanders when there's no goal info (the main one)
 
-**Core requirements: fully satisfied.**
+If all three goal_* flags are False — meaning the robot doesn't know where the
+goal is — the code still moves. It falls through to lines 11-16 and picks
+FORWARD (or LEFT, or RIGHT) just because it's safe.
 
----
+Tested this: `choose_action(False, False, False, False, False, False)` returns
+"FORWARD". That seems wrong. If the robot has no idea where the goal is, it
+should probably stop and wait instead of driving around randomly. In a real
+robot this could happen if the goal tracker loses signal or something.
 
-## 3. Issues Found
+Fixed this in navigation_logic_revised.py — added a check so if there's no goal
+signal at all, it returns STOP.
 
-### 3.1 [MINOR] Hard-coded priority: FRONT > LEFT > RIGHT
+### 2. Priority is hard-coded front > left > right
 
-**Location:** Lines 3-8 and 11-16
+When multiple goal directions are safe at the same time (like if the goal is
+diagonally front-right), it always picks front first. The brief doesn't say
+what to do here so technically any deterministic choice is fine, but front-first
+might not always be the shortest path. Didn't change this since it's not wrong,
+just arbitrary.
 
-When multiple goal directions are simultaneously safe (e.g., goal is diagonally front-right, so both `goal_front` and `goal_right` are True), the function always picks FORWARD first, then LEFT, then RIGHT. This priority is arbitrary and not derived from the brief. While the brief permits any deterministic tie-breaking, a fixed front-first bias may cause suboptimal paths in environments where the goal is consistently to one side.
+### 3. No input checking
 
-**Impact:** Low — correctness is unaffected; only path efficiency may vary.
+The function doesn't verify that inputs are actually booleans. If something
+passes in None or a string by accident, Python's truthiness would handle it
+but maybe not in the way you'd expect. Added bool() coercion in the revised
+version. Not a big deal for the simulation though.
 
-### 3.2 [MODERATE] Undefined behaviour when no goal signal is present
+### 4. No comments / docstring
 
-**Location:** Lines 11-16 (fallback "pick any safe direction")
+The generated code has basically no documentation — just two inline comments.
+For a 19-line function it's readable enough, but added a proper docstring in
+the revised version.
 
-When all three `goal_*` flags are `False` (the robot has no information about where the goal is), the function still moves — it picks FORWARD if safe, then LEFT, then RIGHT. This means the robot will wander aimlessly in open space rather than stopping to wait for goal information. In a real system, sensor dropout or goal-tracker failure could produce all-False goal signals, and wandering could be dangerous.
+## What's good about it
 
-**Example scenario:**
-```python
-choose_action(False, False, False, False, False, False)
-# Returns "FORWARD" — robot moves with no goal guidance
-```
+- It's actually safe. You can't get it to move into a blocked direction no
+  matter what inputs you give it (verified all 64 combinations).
+- Simple and easy to follow, no weird state or side effects.
+- Goal preference works correctly — always picks a goal direction over a
+  non-goal direction when both are safe.
+- The STOP fallback works — tested the dead_end environment and it stops
+  immediately like it should.
 
-**Impact:** Moderate — violates the principle of "safe fallback" when goal information is unavailable. The brief says "prefer moving toward its goal whenever this can be done safely"; when no goal direction is known, moving toward *no* goal is not covered by the requirement.
+## Revised version
 
-### 3.3 [MINOR] No input validation
-
-**Location:** Function entry
-
-The function does not validate that its six inputs are booleans. Passing `None`, integers, or strings could produce unexpected results due to Python's truthiness rules (e.g., `0` is falsy, `1` is truthy, but `"False"` is truthy).
-
-**Impact:** Low — in controlled simulation this is unlikely, but defensive programming would improve robustness.
-
-### 3.4 [MINOR] Missing docstring and type annotations
-
-**Location:** Function definition
-
-The function has no docstring describing parameters, return values, or behaviour. No type hints are used. This reduces readability and makes the generated code harder to integrate into a larger codebase.
-
-**Impact:** Low — code is short enough to be self-explanatory, but documentation is good practice.
-
-### 3.5 [OBSERVATION] No exploration strategy beyond fixed priority
-
-**Location:** Lines 11-16
-
-When no goal direction is safe but some directions are open, the robot picks the first safe direction in a fixed order (FRONT, LEFT, RIGHT). This can lead to repetitive behaviour or loops in maze-like environments. The simulation showed the robot still reaches the goal in all test environments, but a more sophisticated exploration strategy (e.g., wall-following, random tie-breaking) could improve robustness in untested environments.
-
-**Impact:** Low — current strategy works for the test environments; more complex environments may expose limitations.
-
----
-
-## 4. Strengths
-
-1. **Correctness:** The logic is provably safe — it is impossible for the function to return a movement into a blocked direction.
-2. **Simplicity:** 19 lines of clear, readable code with no unnecessary complexity.
-3. **Determinism:** Pure function with no state, making it fully testable (all 64 input combinations verified).
-4. **Goal preference:** Correctly prioritizes goal-aligned movement over arbitrary safe movement.
-5. **Safe fallback:** Returns STOP when all directions are blocked.
-
----
-
-## 5. Recommendations for Revision
-
-The revised implementation (`navigation_logic_revised.py`) addresses the issues above:
-
-1. **Stop when no goal signal is present** (issue 3.2): If all `goal_*` flags are False, return "STOP" instead of wandering. This is the safer default.
-2. **Add input validation** (issue 3.3): Coerce inputs to booleans explicitly.
-3. **Add docstring and type annotations** (issue 3.4): Document the function's contract.
-4. **Keep the existing priority logic** (issue 3.1): The front-first tie-breaking is acceptable per the brief; changing it could introduce unintended behaviour.
-5. **Keep the simple exploration strategy** (issue 3.5): The current strategy passes all tests; over-engineering is not warranted.
-
----
-
-## 6. Verdict
-
-| Category | Rating |
-|---|---|
-| Correctness | Excellent |
-| Safety | Excellent |
-| Robustness | Good (improved in revision) |
-| Code quality | Fair (improved in revision) |
-| Requirements coverage | Complete |
-
-**The generated logic is acceptable for submission.** The revised version is recommended for production use but the original is functionally correct and passes all benchmark tests.
+navigation_logic_revised.py fixes issues 1 and 3, and adds a docstring for
+issue 4. Issue 2 (priority order) left as-is since the brief allows any
+deterministic tie-breaking. Ran test_revised.py to make sure the revised
+version still passes all 64 truth-table checks — it does.

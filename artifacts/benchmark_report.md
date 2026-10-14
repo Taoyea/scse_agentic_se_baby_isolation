@@ -1,62 +1,45 @@
-# Simulation Benchmark Report
+# Simulation Benchmark Results
 
-**Generated:** 2026-10-13
-**Navigation logic under test:** `generated/navigation_logic.py`
-**Test harness:** `simulator.py`
+Ran the generated navigation logic through simulator.py. Two types of tests:
+(1) all 64 possible input combinations, and (2) five different grid maps.
 
----
+## Part 1: All 64 input combinations
 
-## 1. Exhaustive Truth-Table Test (64 combinations)
+Since the function takes 6 booleans, there are 2^6 = 64 possible inputs.
+Tested every single one.
 
-The navigation function `choose_action(blocked_front, blocked_left, blocked_right, goal_front, goal_left, goal_right)` was tested against all \(2^6 = 64\) possible input combinations.
+Results:
+- All 64 return a valid action (FORWARD/LEFT/RIGHT/STOP)
+- All 64 are safe — never tries to move into a blocked direction
+- All 64 respect goal preference — if a goal direction is safe, it picks it
 
-| Metric | Result |
-|---|---|
-| Total combinations | 64 |
-| Valid action output | 64 / 64 (100.0%) |
-| No collision (safety) | 64 / 64 (100.0%) |
-| Goal preference respected | 64 / 64 (100.0%) |
+Action breakdown:
+- FORWARD: 25 times
+- LEFT: 18 times
+- RIGHT: 13 times
+- STOP: 8 times (only when all three directions are blocked, which makes sense)
 
-### Action distribution
+No issues here. The logic is solid at the unit level.
 
-| Action | Count |
-|---|---|
-| FORWARD | 25 |
-| LEFT | 18 |
-| RIGHT | 13 |
-| STOP | 8 |
+## Part 2: Grid environments
 
-### Key observations
+Made 5 test maps and let the robot run around in each one.
 
-- **Safety is guaranteed:** the function never returns a movement command for a direction whose `blocked_*` flag is `True`.
-- **Goal preference is guaranteed:** whenever at least one goal direction is safe, the function selects a goal-aligned movement rather than an arbitrary safe direction.
-- **STOP is the fallback:** the function returns `STOP` in exactly the 8 combinations where all three directions are blocked.
+| Map | What happened | Steps |
+|---|---|---|
+| open_field | reached goal | 9 |
+| corridor | reached goal | 15 |
+| dead_end | stopped immediately | 1 |
+| maze | reached goal | 18 |
+| room_with_obstacles | reached goal | 20 |
 
----
+4 out of 5 reached the goal. The dead_end one is supposed to fail — the robot
+starts boxed in on all three sides, so stopping is the correct behavior.
+Counted that as a pass for the safety requirement, not a real failure.
 
-## 2. Grid-World Integration Tests
+### Maps used
 
-The robot was placed in five distinct grid environments and allowed to navigate using the generated logic.
-
-| Environment | Description | Result | Steps | Status |
-|---|---|---|---|---|
-| `open_field` | 5x5 open field, goal at opposite corner | PASS | 9 | goal_reached |
-| `corridor` | Narrow corridor with a turn | PASS | 15 | goal_reached |
-| `dead_end` | Robot starts in a 3-sided dead end | N/A | 1 | stopped |
-| `maze` | Small maze requiring multiple turns | PASS | 18 | goal_reached |
-| `room_with_obstacles` | Open room with scattered obstacles | PASS | 20 | goal_reached |
-
-**Summary: 4 / 5 environments reached the goal.**
-
-### Notes on `dead_end`
-
-The `dead_end` environment is **not a failure** — it is a designed safety test. The robot starts surrounded by obstacles on the front, left, and right. The correct behaviour per the brief is to stop, which is exactly what the logic does (`status=stopped` after 1 step). This confirms the safe-stop requirement works in a realistic scenario.
-
----
-
-## 3. Environment Details
-
-### open_field
+open_field (5x5, goal at opposite corner):
 ```
 S....
 .....
@@ -64,9 +47,8 @@ S....
 .....
 ....G
 ```
-Start: (0,0) facing East. The robot navigates diagonally to (4,4) in 9 steps.
 
-### corridor
+corridor (L-shaped hallway):
 ```
 #######
 #S....#
@@ -76,9 +58,8 @@ Start: (0,0) facing East. The robot navigates diagonally to (4,4) in 9 steps.
 #G....#
 #######
 ```
-Start: (1,1) facing East. Requires navigating an L-shaped corridor. Reached goal in 15 steps.
 
-### dead_end
+dead_end (robot starts surrounded):
 ```
 #######
 #.....#
@@ -88,9 +69,8 @@ Start: (1,1) facing East. Requires navigating an L-shaped corridor. Reached goal
 #...#G#
 #######
 ```
-Start: (3,3) facing North. All three movement directions are blocked. Robot correctly stops immediately.
 
-### maze
+maze (needs multiple turns):
 ```
 #########
 #S..#...#
@@ -102,9 +82,8 @@ Start: (3,3) facing North. All three movement directions are blocked. Robot corr
 #G....#.#
 #########
 ```
-Start: (1,1) facing East. Requires multiple turns and backtracking. Reached goal in 18 steps.
 
-### room_with_obstacles
+room_with_obstacles (open area with scattered walls):
 ```
 .......
 .S..#..
@@ -114,14 +93,19 @@ Start: (1,1) facing East. Requires multiple turns and backtracking. Reached goal
 ..#...G
 .......
 ```
-Start: (1,1) facing East. Navigates around scattered obstacles. Reached goal in 20 steps.
 
----
+## Thoughts
 
-## 4. Conclusion
+The generated logic works well for these test cases. The maze and obstacle
+room were the trickiest and it still found the goal. One thing I noticed: in
+environments where the goal direction isn't immediately obvious (like around
+corners), it relies on the fallback "pick any safe direction" behavior, which
+happens to work because of the front > left > right priority. It's not smart
+exploration, but it gets the job done for these maps.
 
-The generated navigation logic passes all exhaustive unit tests (100% safety, 100% goal preference) and successfully navigates 4 out of 5 grid environments. The fifth environment (`dead_end`) correctly triggers the safe-stop behaviour as designed.
+The main weakness found during review (wandering when no goal signal exists)
+doesn't show up in these tests because all the maps have a goal position set,
+so the goal_directions() function always returns at least one True. Fixed that
+in the revised version anyway.
 
-**Overall verdict: PASS**
-
-The logic is correct for the requirements specified in `brief.txt`. Potential improvements (explored in `review_notes.md` and the revised logic) include better handling of environments with no goal-direction signal and more sophisticated exploration when no goal direction is immediately available.
+Raw data saved in simulation_results.json.
